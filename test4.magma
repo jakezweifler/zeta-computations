@@ -1,0 +1,116 @@
+
+// n := 3;
+// G := AbelianGroup([n]);  // This creates Z/nZ
+
+// // Get the zero element of Z/nZ
+// zero_element := G!0;
+
+// // Define the set of all possible tuples [b1, b2, b3], excluding [0, 0, 0]
+// tuples := [ [b1, b2, b3] : b1 in G, b2 in G, b3 in G | b1 ne zero_element or b2 ne zero_element or b3 ne zero_element ];
+
+// // Print the resulting tuples
+// print tuples;
+
+
+p := 13; // Example for Z/3Z
+G := FiniteField(p); // This is Z/pZ
+
+// Define the set of all possible tuples (b_1, b_2, b_3)
+tuples := [ [b1, b2] : b1 in G, b2 in G | b1 ne 0 or b2 ne 0 ];
+#tuples; // Should be p^3 - 1
+
+F := FreeAbelianGroup(#tuples); // Free abelian group with p^3 - 1 generators
+
+
+
+// Create a mapping between tuples and generators
+tuple_map := AssociativeArray();
+for i in [1..#tuples] do
+    tuple_map[tuples[i]] := F.i; // Map tuple (b_1, b_2, b_3) to i-th generator
+end for;
+
+
+// Access the generator corresponding to the tuple [1, 0, 2]
+// gen := tuple_map[[1, 0, 2]];
+// print "Generator for tuple [1, 0, 2]:", gen;
+
+
+
+// gen1 := tuple_map[[1, 0, 0]];
+// gen2 := tuple_map[[0, 1, 1]];
+// sum := gen1 + gen2;
+// print "sum:", sum;
+
+
+
+// Generate all 6 permutations of (b_1, b_2, b_3) using the symmetric group S_3
+S2 := SymmetricGroup(2);
+
+
+// Create relations by looping through all generators and imposing the relations
+relations := [];
+
+
+for i in [1..#tuples] do
+    t := tuples[i];  // Original tuple
+    gen := tuple_map[t];  // Corresponding generator
+    
+    // Loop through each permutation in S_3
+    for sigma in S2 do
+        permuted_tuple := [ t[j^sigma] : j in [1..2] ];  // Permuted tuple
+        if permuted_tuple ne t then
+            Append(~relations, gen - tuple_map[permuted_tuple]);  // Relation: gen = permuted_gen
+        end if;
+    end for;
+end for;
+
+//after this, should be \binom{n+2}{3}-1 generators left
+
+// Loop through each generator corresponding to a tuple
+for i in [1..#tuples] do
+    t := tuples[i];  // Original tuple [b_1, b_2, b_3]
+
+    // Compute the two new tuples based on the motivic blowup relations
+    a1, a2 := Explode(t);
+
+    if a1 ne a2 then
+        new_tuple1 := [a1, a2 - a1];
+        new_tuple2 := [a1 - a2, a2];
+    
+        gen1 := tuple_map[new_tuple1];
+        gen2 := tuple_map[new_tuple2];
+
+        Append(~relations, tuple_map[t] - gen1 - gen2);
+    else
+        new_tuple1 := [a1, 0];
+        gen1 := tuple_map[new_tuple1];
+        Append(~relations, tuple_map[t] - gen1);
+    end if;
+
+end for;
+
+// Define the quotient by the relations
+Q, mapFtoQ := quo<F | relations>;  // Create the quotient group and map
+
+// Now Q is the quotient group/module with the relations imposed
+Q;
+
+
+// // Compute the abelian invariants of the quotient group/module
+// invariants := AbelianInvariants(Q);
+
+// // Display the group structure
+// Q_structure := AbelianGroup(invariants);
+// print Q_structure;
+
+
+// element := tuple_map[[0,0,1]];
+
+// // Apply the map to reduce the element in the quotient group
+// element_in_Q := element @ mapFtoQ;  // This maps the element into Q using the quotient map
+
+// // Compute the order of the element in the quotient group
+// order_of_element_in_Q := Order(element_in_Q);
+
+// // Print the order
+// print "The order of the element in Q is:", order_of_element_in_Q;

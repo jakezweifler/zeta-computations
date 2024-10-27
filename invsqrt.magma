@@ -1,0 +1,148 @@
+// // Function to compute s^{-1/2} modulo t^N using Newton iteration
+// function ApproxInvSqrTest(K, s, N)
+//     R<t> := PolynomialRing(K);  // Define the power series ring over the field K
+//     x := R!1;  // Start with x_0 = 1 as the initial guess
+
+//     for i := 1 to N do
+//         // Perform the Newton iteration
+//         x := (3/2)*x - (1/2)*s*x^3 mod t^(2^(i + 1));
+//     end for;
+
+//     return x;  // This x will be the approximation of s^{-1/2}
+// end function;
+
+// // Example Usage
+// K := FiniteField(11);  // Field of definition
+// s := Polynomial(K, [1, 2, 3]);  // Example polynomial s = 3t^2 + 2t + 1
+// N := 3;  // Desired precision
+// p := ApproxInvSqrTest(K, s, N);  // Compute the approximation of s^{-1/2}
+// // print p;
+
+
+// //test
+// q := Polynomial(K, [0, 2, 3]);  // Example polynomial s = 3t^2 + 2t + 1
+// q0 := 1 - (1/2)*q + (3/8) * q^2 - (5/16) * q^3 + (35/128)*q^4 - (63/256)*q^5;
+// // print q0;
+
+
+
+
+
+//computes (1 + ...)^{-1/2}
+function ApproxInvSqr(Q, p, N1, N)
+    // Zp := Integers(p^ N)  Try using this instead if too slow
+    Zp := pAdicRing(p, N1); // The p-adic ring Z/p^N
+    ZpX<x> := PolynomialRing(Zp);
+
+    //here t = y^{-2}
+    R<t> := PowerSeriesRing(ZpX, N * p); 
+
+    // Step 2: Reduce Q(x) mod p^N to get Q0(x)
+    // Q0 := Polynomial(Zp, [Zp!c : c in Coefficients(Q)]);
+    Q0 := ZpX!Q;
+    
+    // Step 3: Define the power series s = 1 + (Q0(x^p) - Q0(x)^p) * t^p
+    Q_p := Evaluate(Q0, x^p);  // Q0(x^p)
+    Q_pow := Q0^p;  // Q0(x)^p
+    s := 1 + (Q_p - Q_pow) * t^p;
+    inv_2 := R!Zp!1 / Zp!2;
+
+    // Step 4: Use Newton iteration to compute s^(-1/2)
+    // Start with the initial guess x_0 = 1
+    x0 := R!1;
+    for i := 1 to N do
+        // Newton iteration: x_{i+1} = (3/2) * x_i - (1/2) * s * x_i^3 mod t^(2^i + 1)
+        x0 := (3 * inv_2 * x0 -  inv_2 * s * x0^3);
+    end for;
+
+    // print x0; 
+    // Step 5: Extract the coefficients A_i(x) from the power series x
+    A := [Coefficient(x0, i) : i in [0..(p*N - 1)]];
+
+
+    // test := x0 * x0 * s;
+    // print test;
+
+    return x0;  // Return the list of polynomials A_i(x)
+end function;
+
+
+
+
+function factorOutPowers(S, Q)
+   // Base case: 
+    if Degree(S) lt Degree(Q) then
+        return [S]; 
+    end if;
+
+    Q0, F0 := Quotrem(S, Q);
+
+    // Recursively decompose the quotient
+    Fs := factorOutPowers(Q0, Q);
+
+    // Append the remainder at the end of the list of terms
+    Append(~Fs, F0);
+
+    return Fs;  // Return the list of F_i terms
+end function;
+
+
+
+// function reduceXPowers()
+
+
+
+// function frobIthBasis(Q, p, N1, N)
+
+
+
+
+
+
+function RedA(f, Q, m)
+    // Here, f(x) is a polynomial, Q(x) is the curve equation, and m > 2
+    ZpX<x> := Parent(f);  // Get the parent ring of the polynomial f
+    Q_prime := Derivative(Q);  // Derivative of Q(x)
+
+    // Apply the reduction formula: RedA(S dx/y^m) = A dx/y^(m-2) + correction term
+    A := f;
+    B := Derivative(f);  // Compute B'(x)
+
+    // Apply the reduction for S dx / y^m
+    A_new := A + (2/(m-2)) * B * Q_prime;  // Reduced term A
+    correction_term := (1/(m-2)) * Derivative(2*B/(m-2) * Q_prime);
+
+    // Final reduced expression
+    return A_new - correction_term;
+end function;
+
+
+
+
+
+
+
+
+
+
+// Example usage
+Q := Polynomial(Integers(), [1, 0, 0, 1]);  // Example polynomial Q(x) = 3x^2 - 2x + 1
+
+P := Polynomial(Integers(), [0,0,0,-10,0,0,5,0,0,5,0,0,-10]);  
+PP := -10 * Q^4 + 45 * Q^3 - 70*Q^2 + 35*Q;
+
+
+p := 5;  // Prime p
+N1 := 2;
+N := 2;  // Should actually be <= N_1 + log_p(2N_1)
+
+
+A := ApproxInvSqr(Q, p, N1, N);  // Compute the A_i(x)
+print A;  // Print the list of polynomials A_i(x)
+
+print Q;
+print PP;
+
+print P;
+
+// print(factorOutPowers(P,Q));

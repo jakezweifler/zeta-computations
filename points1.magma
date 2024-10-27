@@ -1,0 +1,29 @@
+
+
+
+p := 7;  // Choose a prime p
+n := 3;
+F := FiniteField(p);  // Define the finite field F_p
+a := F!1;  // Set a coefficient for the curve, you can modify it as needed
+b := F!1;  // Set b coefficient for the curve
+Q := Polynomial(F, [b, 0, a, 1]);  // Q(x) = x^3 + ax + b
+C := HyperellipticCurve(Q);  // Define the curve y^2 = x^3 + ax + b
+
+// N := 7;
+
+// W := WittRing(F);
+// R<x> := PolynomialRing(W);
+
+
+// W := WittRing(F, N);
+
+
+R<x> := PowerSeriesRing(Integers());
+
+f := &+[ (i+1)*x^i : i in [0..n] ];  // where n is the highest degree you want
+f := &+[ (i+1)*x^i : i in [0..5] ];
+print f;
+
+
+print Q;
+print C;
