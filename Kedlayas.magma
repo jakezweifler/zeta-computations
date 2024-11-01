@@ -1,30 +1,48 @@
 
-// Example usage
-Q := Polynomial(Integers(), [1, 0, 0, 1]);  // Example polynomial Q(x) = 3x^2 - 2x + 1
+p := 5;  // Prime p
+N1 := 5;
+N := 3;  // Should actually be <= N_1 + log_p(2N_1)
 
-P := Polynomial(Integers(), [0,0,0,-10,0,0,5,0,0,5,0,0,-10]);  
-PP := -10 * Q^4 + 45 * Q^3 - 70*Q^2 + 35*Q;
-
-
-p := 13;  // Prime p
-N1 := 3;
-N := 2;  // Should actually be <= N_1 + log_p(2N_1)
-
-
-Zp := pAdicRing(p, N1); // The p-adic ring Z/p^N
+Zp := pAdicField(p, N1); // The p-adic ring Z/p^N
 ZpX<x> := PolynomialRing(Zp);
 
+Q := x^3 + x + 1;  // Example polynomial Q(x) = 3x^2 - 2x + 1
+Q_prime := Derivative(Q);
+g := 1;
 
 //here t = y^{-1}
 R<t> := PowerSeriesRing(ZpX, 2 * N * p); 
 
 
-// TT := 3*x^3 + 3;
 
-// print Parent(Q);
-// print Parent (TT);
-// print Parent (Q + TT);
+// Function to convert a polynomial with rational coefficients to Z/p^n[x]
+function ConvertToPAdicField(poly, p, N1)
+    Zpn := pAdicField(p, N1);  
+    ZpnX<x> := PolynomialRing(Zpn);  
 
+    // Convert each coefficient to Z/p^n by clearing denominators
+    coefficients := [Zpn!(Numerator(c) * Denominator(c)^(-1)) : c in Coefficients(poly)];
+    return ZpnX!coefficients;
+end function;
+
+
+// input: polynomial in Z[x]; output: U, V in Zp[x] such that UQ + VQ' = 1
+function getPadicBezouts(poly, p, N1)
+    Qx<x> := PolynomialRing(Rationals());
+
+    Q_rat := Qx!poly;
+    Q_rat_prime := Derivative(Q_rat); 
+
+    gcd, U0, V0 := XGCD(Q_rat, Q_rat_prime);
+
+    U := ConvertToPAdicField(U0, p, N1);
+    V := ConvertToPAdicField(V0, p, N1);
+
+    return U, V;
+end function;
+
+
+U, V := getPadicBezouts(Q, p, N1);
 
 
 
@@ -52,8 +70,6 @@ function ApproxInvSqr(Q, p, N1, N)
 
     return x0;  // Return the list of polynomials A_i(x)
 end function;
-
-
 
 
 FrobYinv := t^p * ApproxInvSqr(Q, p, N1, N);
@@ -97,14 +113,13 @@ end function;
 
 
 
-
 //coef should always be odd here
 function reducePows(S, coef)
     if S eq Parent(S)!0 then
         return S;
     end if;
 
-    if (coef mod 2) eq 0
+    if (coef mod 2) eq 0 then
         print "SOMETHING SEEMS WRONG";
     end if;   
 
@@ -122,8 +137,8 @@ function reducePows(S, coef)
             // print coef;
             // print Fs;
             // print "FAIL";
-
-            result +:= Fs[i] * t;  // Q^(i-1) * t^coef = Q^? * t
+            Qpow := (i-1) - ((coef - 1) div 2);
+            result +:= Fs[i] * Q^Qpow * t;  // Q^(i-1) * t^(coef - 1) * t = Q^? * t so ? = 
         else
             result +:= Fs[i] * t^(coef - 2*(i-1));  // replace
         end if;     
@@ -138,7 +153,7 @@ end function;
 function getBasisRedA(i)
     // print(FrobYinv);
     b := p * x^(p*i + p - 1) * FrobYinv;
-    print b;
+    // print b;
 
     result := R!0;
 
@@ -148,16 +163,14 @@ function getBasisRedA(i)
         // print i;
         // print "";
         result +:= reducePows(A,i);
-    end for;            
+    end for;    
 
-    return result;
+    coeffs := [Coefficient(result, 2*i+1) : i in [0..Degree(result) div 2]];
+    // print result;
+    // print result;
+    return coeffs;
 end function;
 
-
-
-//     // print(A);
-//     return b;
-// end function;
 
 print getBasisRedA(0);
 
@@ -175,7 +188,7 @@ function PolynomialDivide(f, a)
     // Check if the divisor is invertible in Zp or if f is divisible by a
     if IsInvertible(Zp!a) then
         a_inv := Zp!1 / Zp!a;  // Compute the inverse of a in Zp
-        return a_inv * f;  // Return the divided polynomial
+        return (a_inv * f);  // Return the divided polynomial
     elif &and[IsDivisibleBy(c, a) : c in Coefficients(f)] then
         // Divide each coefficient by a if all are divisible by a
         return ZpX![(Zp!(c div a)) : c in Coefficients(f)];
@@ -185,6 +198,57 @@ function PolynomialDivide(f, a)
 end function;
 
 
+//Fs = [G,F1,F2,...,Fk] where the element equals Gy^{-1} + F1y^{-3} + ... + Fky^{-(2k+1)} + ...
+function reduceFs(Fs)
+    //set S_{2pN} = F_{2pN}
+
+    Fs[1] := 0;
+    Len := #Fs;
+    Sk := Fs[Len];
+
+    for i in [Len - 1..1 by -1] do
+        Ak := U * Sk;
+        Bk := V * Sk;
+        Fk := Fs[i]; //Fs[i] = F_(i-1) and Fs[1] = 0
+
+        Bk_prime := Derivative(Bk);
+
+        Sk := Fk + Ak + PolynomialDivide(2 * Bk_prime, 2*i-1);
+    end for;
+    
+    return Sk;
+end function;
+
+
+function reduceG(G)
+    j := Degree(G) - 2*g + 1;
+    Gj := G;
+    for i in [j - 1..1 by -1] do
+        R := x^i * Q_prime + 2 * i * x^(i-1) * Q;
+        _, rem := Quotrem(Gj, R);
+        Gj := rem;
+    end for;
+
+
+
+    return Gj;
+end function;
+
+function getBasisRedB(i)
+    Fs := getBasisRedA(i);
+
+    S0 := reduceFs(Fs);
+    G0 := reduceG(Fs[1]);
+
+ 
+
+    return (G0 + S0);
+end function;
+
+print "FINAL OUTPUT:";
+
+print(getBasisRedB(0));
+print(getBasisRedB(1));
 
 // Define the polynomial x^2 + 1 in ZpX
 // P := x^2 + 1;
