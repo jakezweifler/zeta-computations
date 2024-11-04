@@ -1,0 +1,252 @@
+
+//-4,-12,-14  for x^3 + x + 1, 131,137,139
+//0, 22, 0    for x^3 + x    , 131,137,139
+
+//12,41,12*131
+//3, -30, 3*137
+//19, -33, 19*139
+
+
+
+
+
+//computes (1 + ...)^{-1/2}
+function ApproxInvSqr(p, Q, N)  
+    Zp := BaseRing(Parent(Q));  // Get the p-adic ring Zp
+    ZpX<x> := Parent(Q);  // Polynomial ring ZpX
+    R<t> := PowerSeriesRing(ZpX, 2 * N * p); 
+
+    //Define the power series s = 1 + (Q0(x^p) - Q0(x)^p) * t^p
+    Q_p := Evaluate(Q, x^p);  // Q0(x^p)
+    Q_pow := Q^p;  // Q0(x)^p
+    s := 1 + (Q_p - Q_pow) * t^(2*p);
+    inv_2 := R!Zp!1 / Zp!2;
+
+    // Using Newton iteration to compute s^(-1/2)
+    x0 := R!1;
+    //unclear how many times I need to do this, this might be overkill
+    for i in [1..(Floor(Log(2, p * N))+1)] do
+    // for i in [1..N] do
+        // print i;
+        // Newton iteration: x_{i+1} = (3/2) * x_i - (1/2) * s * x_i^3 mod t^(2^i + 1)
+        x0 := (3 * inv_2 * x0 -  inv_2 * s * x0^3);
+    end for;
+
+    return x0;  // Return the list of polynomials A_i(x)
+end function;
+
+
+// FrobYinv := t^p * ApproxInvSqr(Q, N);
+// print(FrobYinv);
+
+
+//Takes in S and T and returns S = F0 + F1*T + F2*T^2 + ...
+//Note that S and T might be different polynomial types, but magma converts T to the right type anyway
+function factorOutPowers(S, T)
+   // Base case: 
+    if Degree(S) lt Degree(T) then
+        return [S]; 
+    end if;
+
+    T0, F0 := Quotrem(S, T);
+    // Recursively decompose the quotient
+    Fs := factorOutPowers(T0, T);
+    Fs := [F0] cat Fs;
+    return Fs;  // Return the list of F_i terms
+end function;
+
+
+
+//coef should always be odd here
+function reducePows(S, Q, coef)
+    ZpX := Parent(S);
+    R<t> := PowerSeriesRing(ZpX, 2 * N * p); 
+    
+    if S eq R!0 then
+        return S;
+    end if;
+
+    //This gives S = Fs[1]*Q^0 + Fs[2]*Q^1 + Fs[3]*Q^2 + ...
+    //So Q^(i-1) = t^{-2(i-1)}
+    Fs := factorOutPowers(S, Q);
+
+    result := R!0;  // Initialize the result as 0
+
+    //here we replace Q^i with y^{2i} as much as possible so that there are still no y's in the numerator
+    for i in [1..#Fs] do
+        if (coef - 2*(i-1)) lt 0 then 
+            Qpow := (i-1) - ((coef - 1) div 2);
+            result +:= Fs[i] * Q^Qpow * t;  // Q^(i-1) * t^(coef - 1) * t = Q^? * t so ? = (i-1) - (coef-1)/2
+        else
+            result +:= Fs[i] * t^(coef - 2*(i-1));  // replace
+        end if;     
+    end for;
+
+    return result;
+end function;
+
+
+
+
+function getBasisUnred(j, p, N, Q, FrobYinv)
+    R := Parent(FrobYinv);
+    ZpX := BaseRing(Parent(FrobYinv));
+    x := ZpX.1;
+    t := R.1;
+
+    b := p * x^(p*j + p - 1) * FrobYinv;
+    result := R!0;
+
+    for i in [0..N-1] do
+        A := Coefficient(b, p * (2*i+1)); //at this point, b = A0 y^{-p} + A1 y^{-3p} + ...
+        result +:= reducePows(A, Q, p * (2*i+1));
+    end for;    
+
+    coeffs := [Coefficient(result, 2*i+1) : i in [0..Degree(result) div 2]];
+    // print result;
+    return coeffs;
+end function;
+
+
+// Function to divide a polynomial f in ZpX by an integer a, if possible
+function PolynomialDivide(f, a)
+    Zp := BaseRing(Parent(f));  // Get the p-adic ring Zp
+    ZpX<x> := Parent(f);  // Polynomial ring ZpX
+
+    a_inv := Zp!1 / Zp!a;  // Compute the inverse of a in Zp
+    return (a_inv * f);  // Return the divided polynomial
+end function;
+
+//Fs = [G,F1,F2,...,Fk] where the element equals Gy^{-1} + F1y^{-3} + ... + Fky^{-(2k+1)} + ...
+function reduceFs(Fs, U, V)
+    //set S_{2pN} = F_{2pN}
+
+    Fs[1] := 0;
+    Len := #Fs;
+    Sk := Fs[Len];
+
+    for i in [Len - 1..1 by -1] do
+        Ak := U * Sk;
+        Bk := V * Sk;
+        Fk := Fs[i]; //Fs[i] = F_(i-1) and Fs[1] = 0
+
+        Bk_prime := Derivative(Bk);
+
+        Sk := Fk + Ak + PolynomialDivide(2 * Bk_prime, 2*i-1);
+    end for;
+    
+    return Sk;
+end function;
+
+
+function reduceG(G, Q, Q_prime)
+    ZpX<x> := Parent(G);
+    g := (Degree(Q)-1) div 2;
+    j := Degree(G) - 2*g + 1;
+    Gj := G;
+    for i in [j - 1..0 by -1] do
+        //I use Max becuase when i = 0, x^{-1} gives error, but we multiply by 0 anyway
+        denom := x^i * Q_prime + 2 * i * x^(Max(i-1,0)) * Q;
+        _, rem := Quotrem(Gj, denom);
+        Gj := rem;
+    end for;
+
+    return Gj;
+end function;
+
+
+
+function PolynomialCoefficientMatrix(polyList)
+    d := #polyList;  // Number of polynomials
+    R := BaseRing(Parent(polyList[1]));  // Base ring of the polynomials
+
+    // Initialize an empty d x d matrix over the base ring
+    M := ZeroMatrix(R, d, d);
+
+    // Populate the matrix with coefficients
+    for i in [1..d] do
+        coeffs := Coefficients(polyList[i]);  // Get coefficients of p_i
+        for j in [1..#coeffs] do
+            M[j, i] := coeffs[j];  // Place coefficient in the matrix
+        end for;
+    end for;
+
+    return M;
+end function;
+
+
+
+
+function getZetaFunc(Q_int, p, N, N1)
+    Zp := pAdicField(p, N1); // The p-adic ring Z/p^N
+    ZpX<x> := PolynomialRing(Zp);
+    //here t = y^{-1}
+    R<t> := PowerSeriesRing(ZpX, 2 * N * p); 
+    
+    Q := ZpX!Q_int;
+    Q_prime := Derivative(Q);
+    _, U, V := XGCD(Q, Q_prime);
+    g := (Degree(Q)-1) div 2;
+
+    FrobYinv := t^p * ApproxInvSqr(p, Q, N);
+
+    basis := [];
+
+    for i in [0..(2*g)-1] do
+        print "getting unred", i;
+        Fs := getBasisUnred(i, p, N, Q, FrobYinv);
+        print "getting redA", i;
+        G0 := Fs[1];
+        S0 := reduceFs(Fs, U, V);
+        print "getting redB", i;
+        bred := reduceG(G0 + S0, Q, Q_prime);
+        Append(~basis, bred);
+    end for;
+
+    print "DONE with mat!";
+
+    M := PolynomialCoefficientMatrix(basis);
+    char_poly := CharacteristicPolynomial(M);
+    print "Characteristic Polynomial:", char_poly;
+    return char_poly;
+    // return g;
+end function;
+
+
+
+
+
+p := 307;  // Prime p
+N1 := 7;
+N := 2;  // Should actually be <= N_1 + log_p(2N_1)
+
+
+Z<u> := PolynomialRing(Integers());
+
+Q := u^5 - u + 1;  // Example polynomial Q(x) = 3x^2 - 2x + 1
+
+
+start := Realtime();
+
+char_poly := getZetaFunc(Q, p, N, N1);
+
+timeElapsed := Realtime(start);
+print "Elapsed time:", timeElapsed, "seconds";
+
+
+
+// A0 := getBasisReduced(0);
+// A1 := getBasisReduced(1);
+// A2 := getBasisReduced(2);
+// A3 := getBasisReduced(3);
+// // print A0;
+// // print A1;
+
+// // M := PolynomialCoefficientMatrix([A0, A1]);
+// M := PolynomialCoefficientMatrix([A0, A1, A2, A3]);
+
+// // Compute the characteristic polynomial
+// char_poly := CharacteristicPolynomial(M);
+// print "Characteristic Polynomial:", char_poly;
+
+
