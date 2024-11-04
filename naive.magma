@@ -1,0 +1,92 @@
+// Function to count solutions to y^2 = f(x) over F_p^n
+function CountPointsOverFpn(fx, p, n)
+    Fpn := FiniteField(p, n);  // Define the extension field F_p^n
+
+    count := 0;  // Initialize counter
+
+    // Iterate over all x in F_p^n
+    for a in Fpn do
+        fx_val := Evaluate(fx, a);  // Compute f(x) in F_p^n
+
+        if fx_val eq 0 then
+            count +:= 1;  // Unique solution y = 0 if f(x) = 0
+        elif IsSquare(fx_val) then
+            count +:= 2;  // Two solutions for y if f(x) is a quadratic residue
+        end if;
+    end for;
+
+    return count;  // Return the total count of solutions
+end function;
+
+
+
+
+p := 47;
+n := 1;
+
+//4,12,14
+//0,-22,0
+
+Fp1 := FiniteField(p,n);  // Define the finite field F_p
+FpnX<x> := PolynomialRing(Fp1);
+
+Fp2 := FiniteField(p,n+1);  // Define the finite field F_p
+FpnY<y> := PolynomialRing(Fp2);
+
+// Q := x^3 + x;
+
+// print(CountPointsOverFpn(Q, p, n));
+
+H1 := HyperellipticCurve(x^5 - x + 1);  // Example hyperelliptic curve y^2 = x^3 + x + 1
+H2 := HyperellipticCurve(y^5 - y + 1);  // Example hyperelliptic curve y^2 = x^3 + x + 1
+
+
+points1 := Points(H1);
+points2 := Points(H2);
+N1 := #Set(points1);  // Count the unique points
+N2 := #Set(points2);  // Count the unique points
+
+
+A := p + 1 - N1;
+B := (N2 - (p^2+1) + A^2) div 2;
+My := (N2 - (p+1)^2 + A^2) div 2;
+// Count the number of points on H over Fp
+// N1 := NumberOfPoints(H);
+print "Number of points on the hyperelliptic curve:", N1, N2;
+print "Magic coefficients:", A, B;
+print "mystery number:", My;
+
+//9,27,108,675, p = 5, x^3+x+1
+
+//128,17408,2249600, p = 131, x^3+x+1
+
+
+//-12 172, 41
+//-3 107, -30
+//-19 245, 106
+
+// // Example setup
+// p := 5;  // Example prime
+// n := 5;  // Modulus exponent
+
+// // Define the polynomial f(x) in Z[x]
+// ZpX<x> := PolynomialRing(Integers());
+// f := x^3 + 1;  // Define f(x) in Z[x]
+
+// // Count solutions to y^2 = f(x) mod p^n
+// count := CountPointsQuadraticResidue(f, p, n);
+// print "Number of points on the curve y^2 = f(x) mod p^n:", count;
+
+
+// //5,21,105,521,2605
+
+// // Define the finite field F_p
+// p := 5;  // Example prime
+// Fp := FiniteField(p);
+
+// // Define the elliptic curve E over Fp by its Weierstrass equation
+// E := EllipticCurve([Fp | 0, 1]);  // Example curve y^2 = x^3 + x + 1
+
+// // Compute the zeta function of the elliptic curve
+// Z_T := ZetaFunction(E);
+// print "Zeta function Z(T):", Z_T;
