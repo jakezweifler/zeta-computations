@@ -1,0 +1,173 @@
+
+// //given a poly in (R[x])[t], returns the same poly but in (R[t])[x]
+// function swapVarPrec(f)
+//     R := BaseRing(BaseRing(Parent(f)));
+
+//     Rx<x> := BaseRing(Parent(f));
+//     Rxt<t> := Parent(f);
+
+//     Rt<t> := PolynomialRing(R);
+//     Rtx<x> := PolynomialRing(Rt);
+
+//     coeffs := Coefficients(f);
+
+//     g := &+[Rt!coeffs[i]*x^(i-1) : i in [1..#coeffs]];
+//     return g;
+// end function;
+
+//converts f in Q[t] to f in Zp[x], assuming all coefs exist.
+function ratToPadic(f, p, N1)
+    Zp := pAdicRing(p, N1); 
+    ZpX<x> := PolynomialRing(Zp);
+    coeffs := Coefficients(f);
+    padic_coeffs := [Zp!c : c in coeffs];  // Convert each coefficient to p-adic
+    f_padic := &+[padic_coeffs[i] * x^(i-1) : i in [1..#padic_coeffs]];
+    
+    return f_padic;
+end function;
+
+
+//given integer poly Q, gets U,V in pAdicRing(p, N1) such that UQ + VQ_prime = 1
+function getUV(p, Q, N1)
+    R<t> := PolynomialRing(RationalField());
+    Q_rat := R!Q;
+    Q_rat_prime := Derivative(Q_rat);
+
+    _, U0, V0 := XGCD(Q_rat, Q_rat_prime);    
+
+    // print(U0);
+    // print(V0);
+
+    // print(U0 * (t^3 + t + 1) + V0 * Derivative(Q));
+
+
+    U := ratToPadic(U0, p, N1);
+    V := ratToPadic(V0, p, N1);
+
+    return U,V;
+end function;
+
+
+//inputs satisfy UQ + VQ_prime = 1, in other words, U = Q^{-1} mod Q_prime, etc...
+function getRS(Q, Q_prime, U, V, i)
+    ZpX<x> := Parent(Q);  
+
+    R0 := x^i * U;
+    S0 := x^i * V;
+
+    _, R1 := Quotrem(R0, Q_prime);
+
+    E := x^i - R1 * Q;
+
+    S1, R2 := Quotrem(E, Q_prime);
+
+
+    A := R0 * Q + S0 * Q_prime;
+    B := R1 * Q + S1 * Q_prime;
+
+    // print(R1);
+    // print(S1);
+
+
+    return R1, S1;
+
+end function;
+
+
+
+function getMVmatrix(Q, Q_prime, U, V, g)
+    ZpX<x> := Parent(Q);
+    Zp := BaseRing(Parent(Q));
+    
+    // ZpXt<t> := PolynomialRing(ZpX);
+    // Zpb<b> := PolynomialRing(Zp);   
+
+    //in the paper, we use Zp[t] for the matrix, but Im just using x again since I dont want to make another variable
+    M := ZeroMatrix(ZpX, 2*g, 2*g);
+
+    for i in [0..(2*g)-1] do
+
+        R,S := getRS(Q, Q_prime, U, V, i);
+
+        // A := (2*t-1)*R + 2*Derivative(S);
+        A := 2 * R;
+        B := 2*Derivative(S) - R;
+
+        for j in [0..(2*g)-1] do
+            M[j + 1, i + 1] := x * Coefficient(A, j) + Coefficient(B, j); 
+        end for;
+    end for;
+
+    // print(M);
+
+    return M;
+end function;
+
+
+
+
+a := 1;
+b := 1;
+D := 27*b^2 + 4*a^3;
+
+Z<u> := PolynomialRing(Integers());
+Q_int := u^3 + a*u + b;  // Example polynomial Q(x) = 3x^2 - 2x + 1
+g := 1;
+
+p := 37;  // Prime p
+N1 := 5;
+Zp := pAdicRing(p, N1); 
+ZpX<x> := PolynomialRing(Zp);
+
+Q := ZpX!Q_int;
+Q_prime := Derivative(Q);
+
+U,V := getUV(p, Q_int, N1);
+R,S := getRS(Q, Q_prime, U, V, 0);
+M := getMVmatrix(Q, Q_prime, U, V, g);
+
+
+
+
+
+
+M0 := ZeroMatrix(ZpX, 2*g, 2*g);
+
+M0[1,1] := 9*b*(6*x - 5);
+M0[1,2] := 2*a^2*(6*x - 5);
+M0[2,1] := -6*a*(6*x - 7);
+M0[2,2] := 9*b*(6*x - 7);
+
+print(M0);
+print(D * M);
+
+// print(Parent(U));
+// print(V);
+
+// A := U * Q_int + V * Derivative(Q_int);
+
+// print(A);
+
+
+// Zp := pAdicRing(p, N1); // The p-adic ring Z/p^N
+// ZpX<x> := PolynomialRing(Zp);
+// //here t = y^{-1}
+    
+// Q := ZpX!Q_int;
+// Q_prime := Derivative(Q);
+
+// Fp := pAdicField(p, N1);
+// FpX<x> := PolynomialRing(Zp);
+// QF := FpX!Q;
+// QF_prime := FpX!Q_prime;
+
+// print Parent(Q);
+// print Parent(QF);
+
+// _, U, V := XGCD(QF, QF_prime);
+
+
+// A := U*Q + V*Q_prime;
+
+// print A;
+
